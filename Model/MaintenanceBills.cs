@@ -11,6 +11,7 @@ namespace SocietyManagementAPI.Model
         public int bill_run_id { get; set; }
         public int resident_flat_id { get; set; }
         public int resident_id { get; set; }
+        public int? user_id { get; set; } = 0;
         public string bill_no { get; set; }
         public DateTime bill_date { get; set; }
         public DateTime period_from { get; set; }

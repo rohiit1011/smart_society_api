@@ -27,7 +27,7 @@ namespace SocietyManagementAPI.Model
         public decimal? monthly_maintenance { get; set; }
         public decimal? tenant_maintenance { get; set; }
         public decimal? sinking_fund { get; set; }
-        public int? owner_resident_id { get; set; }
+        public int? owner_user_id { get; set; }
     }
 
 }

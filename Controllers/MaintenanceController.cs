@@ -46,7 +46,15 @@ namespace SocietyManagementAPI.Controllers
                 // replace this with actual current user id extraction
                 var currentUserId = int.TryParse(User?.FindFirst("user_id")?.Value, out var id) ? id : 0;
                 var result = await _svc.GenerateRunAsync(req, currentUserId);
-                return Ok(await _commonService.generateResponse(true, result, "Bills generated"));
+                if(result.BillRunId==0 && result.TotalAmount == 0)
+                {
+                    return Ok(await _commonService.generateResponse(false, result, "Bills for this period are already finalized."));
+                }
+                else
+                {
+                    return Ok(await _commonService.generateResponse(true, result, "Bills generated"));
+                }
+                
             }
             catch (Exception ex)
             {
@@ -157,6 +165,58 @@ namespace SocietyManagementAPI.Controllers
             }
         }
 
+
+        [HttpGet("get-resident-bills")]
+        public async Task<IActionResult> GetResidentBills([FromQuery] int residentId)
+        {
+
+            try
+            {
+                var response = await _svc.GetResidentBillsAsync(residentId);
+                return Ok(await _commonService.generateResponse(true, response, "Bills fetched successfully."));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching Bills");
+
+                return StatusCode(500,
+                    await _commonService.generateResponse(false, null, "Error while Error fetching Bills"));
+            }
+             
+        }
+
+
+        [HttpGet("getBillDetails")]
+        public async Task<IActionResult> GetBillDetails(int billId)
+        {
+            try
+            {
+                var result = await _svc.GetBillDetailsAsync(billId);
+
+                if (result == null)
+                {
+                    return Ok(await _commonService.generateResponse(
+                        false,
+                        null,
+                        "Bill not found."
+                    ));
+                }
+
+                return Ok(await _commonService.generateResponse(
+                    true,
+                    result,
+                    "Bill details fetched successfully."
+                ));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(await _commonService.generateResponse(
+                    false,
+                    null,
+                    $"Exception: {ex.Message}"
+                ));
+            }
+        }
 
 
 

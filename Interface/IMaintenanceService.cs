@@ -13,6 +13,8 @@ namespace SocietyManagementAPI.Interface
             Task<List<MaintenanceHeads>> FetchAllHeadsAsync(int societyId);
         Task<MaintenanceHeads> AddHeadAsync(MaintenanceHeads maintenanceHeads);
         Task<bool> ApplyLatePenaltiesForDueRunsAsync();
-        
+        Task<object> GetResidentBillsAsync(int residentId);
+        Task<object> GetBillDetailsAsync(int billId);
+
     }
 }

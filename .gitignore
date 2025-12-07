@@ -1,0 +1,8 @@
+# ignore VS and build files
+.vs/
+bin/
+obj/
+*.vsidx
+*.json
+*.db
+*.log

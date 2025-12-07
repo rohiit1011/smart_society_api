@@ -14,6 +14,7 @@ namespace SocietyManagementAPI.Interface
         Task<object> GetResidenFlatDetails(int residentId);
         Task<object> GetResidenFamilyDetails(int residentId);
         Task<object> GetResidenVehiclesDetails(int residentId);
+        Task<object> ValidateResidentFlatConflict(List<ResidentFlat> flatDto);
 
 
         Task<object> GetCommitteeMembers(int societyId);

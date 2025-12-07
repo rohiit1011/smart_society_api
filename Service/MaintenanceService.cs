@@ -89,6 +89,7 @@ namespace SocietyManagementAPI.Service
                     var preview = new PreviewBillDto
                     {
                         ResidentId = r.resident_id,
+                        UserId=r.user_id,
                         ResidentFlatId = flat.resident_flat_id,
                         FlatNo = (!string.IsNullOrEmpty(flat.flat_or_house_number) ? flat.flat_or_house_number : flat.flat_or_house_number) ?? $"Flat-{flat.resident_flat_id}",
                         Lines = new List<PreviewLineDto>()
@@ -184,7 +185,14 @@ namespace SocietyManagementAPI.Service
                 .FirstOrDefaultAsync(r => r.society_id == req.SocietyId && r.period_from == req.PeriodFrom && r.period_to == req.PeriodTo && r.status == "Finalized");
 
             if (existing != null)
-                throw new InvalidOperationException("Bills for this period are already finalized.");
+            {
+                return new GenerateResultDto
+                {
+                    BillRunId = 0,
+                    CreatedBillsCount = 0,
+                    TotalAmount = 0
+                };
+            }
 
             using var tx = await _context.Database.BeginTransactionAsync();
             try
@@ -215,6 +223,7 @@ namespace SocietyManagementAPI.Service
                     bill_run_id = run.bill_run_id,
                     resident_flat_id = pb.ResidentFlatId,
                     resident_id = pb.ResidentId,
+                    user_id=pb.UserId,
                     bill_no = GenerateBillNo(req.SocietyId, run.bill_run_id),
                     bill_date = DateTime.UtcNow.Date,
                     period_from = req.PeriodFrom,
@@ -538,6 +547,117 @@ Login to pay.
                 _logger.LogError(ex, "Error in AddHeadAsync");
                 throw;       // handled in controller
             }
+        }
+
+
+        public async Task<object> GetResidentBillsAsync(int residentId)
+        {
+            try
+            {
+                var bills = await (
+                    from b in _context.maintenanceBills
+                    join rf in _context.residentFlats
+                        on b.resident_flat_id equals rf.resident_flat_id into flats
+                    from rf in flats.DefaultIfEmpty()
+
+                    join w in _context.societyWings
+                        on rf.wing_id equals w.wing_id into wings
+                    from w in wings.DefaultIfEmpty()
+
+                    where b.resident_id == residentId || b.user_id == residentId
+
+                    orderby b.bill_date descending
+
+                    select new
+                    {
+                        b.bill_id,
+                        b.resident_id,
+
+                        // Bill info
+                        BillNo = b.bill_no,
+                        BillDate = b.bill_date,
+                        Period = $"{b.period_from:dd-MMM-yyyy} to {b.period_to:dd-MMM-yyyy}",
+                        b.total_amount,
+                        Tax = b.total_tax,
+                        TotalPayable = b.total_payable,
+                        Status = b.status,
+                        DueDate = b.due_date,
+                        CreatedAt = b.created_at,
+
+                        // Flat info
+                        FlatNumber = rf.flat_or_house_number,
+                        Floor = rf.floor_number,
+                        Wing = w.wing_name
+                    }
+                ).ToListAsync();
+
+                return bills;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetResidentBillsAsync");
+                throw;
+            }
+        }
+
+        public async Task<object> GetBillDetailsAsync(int billId)
+        {
+            // ---------- BILL HEADER -----------
+            var header = await (
+                from b in _context.maintenanceBills
+                join rf in _context.residentFlats on b.resident_flat_id equals rf.resident_flat_id
+                join w in _context.societyWings on rf.wing_id equals w.wing_id
+                where b.bill_id == billId
+                select new
+                {
+                    b.bill_id,
+                    b.bill_no,
+                    b.bill_date,
+                    Period = $"{b.period_from:dd-MMM-yyyy} to {b.period_to:dd-MMM-yyyy}",
+                    b.total_amount,
+                    b.total_tax,
+                    b.total_payable,
+                    b.status,
+                    b.due_date,
+                    Flat = rf.flat_or_house_number,
+                    Floor = rf.floor_number,
+                    Wing = w.wing_name,
+                    b.created_at
+                }
+            ).FirstOrDefaultAsync();
+
+            if (header == null)
+                return null;
+
+            // ---------- BILL ITEMS ------------
+            var items = await (
+                from i in _context.maintenanceBillLines
+                join h in _context.maintenanceHeads on i.maintenance_head_id equals h.maintenance_head_id
+                where i.bill_id == billId
+                select new
+                {
+                    i.bill_line_id,
+                    i.bill_id,
+                    HeadId = i.maintenance_head_id,
+                    HeadName = h.name,
+                    i.description,
+                    i.amount,
+                    i.quantity,
+                    i.unit_rate,
+                    i.tax_percent,
+                    i.tax_amount,
+                    Total = i.line_total,
+                    i.created_at
+                }
+            ).ToListAsync();
+
+            // ---------- RESULT ----------------
+
+            return new
+            {
+                Header = header,
+                Items = items
+            };
         }
 
 

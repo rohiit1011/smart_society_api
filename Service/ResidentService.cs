@@ -120,6 +120,92 @@ namespace SocietyManagementAPI.Service
             }
         }
 
+
+        public async Task<(bool hasConflict, string message)> CheckResidentFlatConflictsAsync(List<ResidentFlat> flatDto)
+        {
+            if (flatDto == null || flatDto.Count == 0)
+                return (true, "Invalid flat data.");
+
+            foreach (var flat in flatDto)
+            {
+                // BASE QUERY: Same flat
+                var query = _context.residentFlats.Where(x =>
+                    x.wing_id == flat.wing_id &&
+                    x.floor_number == flat.floor_number &&
+                    x.flat_or_house_number == flat.flat_or_house_number
+                );
+
+                // EXCLUDE SAME RECORD when updating
+                if (flat.resident_flat_id > 0)
+                {
+                    query = query.Where(x => x.resident_flat_id != flat.resident_flat_id);
+                }
+
+                // ----------------------------------
+                // 1️⃣ OWNER CHECK (Primary Resident)
+                // ----------------------------------
+                if (flat.is_primary_resident == true)
+                {
+                    bool ownerExists = await query.AnyAsync(x => x.is_primary_resident == true);
+
+                    if (ownerExists)
+                    {
+                        return (true,
+                            $"Owner conflict: Flat {flat.flat_or_house_number}, Floor {flat.floor_number} already has a primary resident."
+                        );
+                    }
+
+                    continue; // Skip tenant check
+                }
+
+                // ----------------------------------
+                // 2️⃣ TENANT CHECK (Date Overlap)
+                // ----------------------------------
+                bool tenantConflict = await query.AnyAsync(x =>
+                    x.is_primary_resident == false &&
+                    x.start_date <= flat.end_date &&
+                    x.end_date >= flat.start_date
+                );
+
+                if (tenantConflict)
+                {
+                    return (true,
+                        $"Tenant conflict: There is already a tenant for Flat {flat.flat_or_house_number}, Floor {flat.floor_number} in this period."
+                    );
+                }
+            }
+
+            return (false, "OK");
+        }
+
+        public async Task<object> ValidateResidentFlatConflict(List<ResidentFlat> flatDto)
+        {
+            try
+            {
+                var (hasConflict, message) = await CheckResidentFlatConflictsAsync(flatDto);
+
+                if (hasConflict)
+                {
+                    return await _commonService.generateResponse(
+                        false,
+                        null,
+                        message
+                    );
+                }
+
+                return await _commonService.generateResponse(
+                    true,
+                    null,
+                    "No conflicts. Safe to proceed."
+                );
+            }
+            catch (Exception ex)
+            {
+                return await _commonService.generateResponse(false, null, ex.Message);
+            }
+        }
+
+
         public async Task<object> RegisterResidentFlatAsync(List<ResidentFlat> flatDto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -130,9 +216,13 @@ namespace SocietyManagementAPI.Service
 
                 var now = DateTime.UtcNow;
 
-                 
+                var check = await CheckResidentFlatConflictsAsync(flatDto);
+                if (check.hasConflict)
+                    return await _commonService.generateResponse(false, null, check.message);
 
-                _context.residentFlats.AddRangeAsync(flatDto);
+
+
+                await _context.residentFlats.AddRangeAsync(flatDto);
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
@@ -256,7 +346,7 @@ namespace SocietyManagementAPI.Service
                                        monthly_maintenance = f.monthly_maintenance,
                                        tenant_maintenance = f.tenant_maintenance,
                                        sinking_fund = f.sinking_fund,
-                                       owner_resident_id=f.owner_resident_id??0
+                                       owner_user_id=f.owner_user_id??0
                                    }).ToListAsync();
 
 

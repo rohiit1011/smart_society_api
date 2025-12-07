@@ -61,6 +61,15 @@ namespace SocietyManagementAPI.Controllers
             return Ok(response);
         }
 
+        [HttpPost("validate-resident-flat-conflict")]
+        public async Task<IActionResult> ValidateResidentFlatConflict([FromBody] List<ResidentFlat> flatDto)
+        {
+            var response = await _residentService.ValidateResidentFlatConflict(flatDto);
+            return Ok(response);
+        }
+
+
+
         [HttpGet("get-committee-member")]
         public async Task<IActionResult> GetCommitteeMembers([FromQuery] int societyId)
         {

@@ -18,6 +18,7 @@
     public class PreviewBillDto
     {
         public int ResidentId { get; set; }
+        public int UserId { get; set; }
         public int ResidentFlatId { get; set; }
         public string FlatNo { get; set; }
         public decimal TotalAmount { get; set; }
